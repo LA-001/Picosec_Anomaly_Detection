@@ -1,6 +1,5 @@
 """
-Uso:
-    python train.py --file_rumore led_off.h5 --latent_dim 32 --epoche 100
+Use: python train.py --file_rumore led_off.h5 --latent_dim 32 --epoche 100
 """
 
 import argparse
@@ -21,35 +20,35 @@ def main(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Uso: {device}")
 
-    std_norm = np.load('checkpoints/std_norm.npy')
+    std_norm = np.load('checkpoints/std_norm.npy')      # Global std used for Z-score normalization
 
-    # --- Carica i dati di rumore (LED off) ---
+    # --- Load the background (LED off) data: 90% train / 10% validation ---
     file_rumore = [Path(p) for p in args.file_rumore.split(",")]
-    dataset = WaveformDataset(file_rumore, std_norm)
+    dataset = WaveformDataset(file_rumore, std_norm)         # Dataset object; __getitem__ returns a normalized torch.tensor for each event
     print(f"Waveform totali (LED off): {len(dataset):,}")
 
-    # Divide in training (90%) e validazione (10%)
     n_val   = int(len(dataset) * 0.1)
     n_train = len(dataset) - n_val
 
-    ds_train, ds_val = random_split(dataset, [n_train, n_val], generator=torch.Generator().manual_seed(42))
+    ds_train, ds_val = random_split(dataset, [n_train, n_val], generator=torch.Generator().manual_seed(42))     # random_split only creates two index subsets (no data is copied)     
     print(f"Training: {n_train:,}  |  Validazione: {n_val:,}")
 
-    loader_train = DataLoader(ds_train, batch_size=args.batch_size, shuffle=True,  num_workers=0, pin_memory=True)
+    loader_train = DataLoader(ds_train, batch_size=args.batch_size, shuffle=True,  num_workers=0, pin_memory=True)      # shuffle=True only for training, validation order doesn't matter
     loader_val   = DataLoader(ds_val,   batch_size=args.batch_size, shuffle=False, num_workers=0, pin_memory=True)
 
-    # --- Crea il modello ---
-    modello = Autoencoder(latent_dim=args.latent_dim).to(device)
-    n_param = sum(p.numel() for p in modello.parameters() if p.requires_grad)
+    # --- Build the model ---
+    modello = Autoencoder(latent_dim=args.latent_dim).to(device)         # Move all model weights to GPU if cuda is avaible
+    n_param = sum(p.numel() for p in modello.parameters() if p.requires_grad)       # Count trainable parameters
     print(f"Parametri del modello: {n_param:,}  |  latent_dim={args.latent_dim}")
 
-    ottimizzatore = torch.optim.Adam(modello.parameters(), lr=1e-3)
     patience_counter = 0
     patience = 10
+    ottimizzatore = torch.optim.Adam(modello.parameters(), lr=1e-3)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(ottimizzatore, patience=3, factor=0.5, min_lr=1e-6, verbose=True)
+
     criterio = nn.L1Loss()
 
-    # --- Ciclo di training ---
+    # --- Training loop ---
     cartella = Path(args.cartella_output)
     cartella.mkdir(parents=True, exist_ok=True)
     storia = {"train": [], "val": []}
@@ -57,20 +56,20 @@ def main(args):
 
     for epoca in range(1, args.epoche + 1):
 
-        # Training
+        # --- Training step ---
         modello.train()
         loss_train = 0.0
-        for wf in tqdm(loader_train, desc=f"Epoca {epoca}/{args.epoche} train"):
+        for wf in tqdm(loader_train, desc=f"Epoca {epoca}/{args.epoche} train"):         # It's like a for loop over loader_train, but with a visual progress bar
             wf = wf.to(device)
-            ricostruita, _ = modello(wf)
-            loss = criterio(ricostruita, wf)
-            ottimizzatore.zero_grad()
-            loss.backward()
-            ottimizzatore.step()
+            ricostruita, _ = modello(wf)        # Forward pass; discard the latent vector here
+            loss = criterio(ricostruita, wf)    # Already averaged over samples and over the batch
+            ottimizzatore.zero_grad()           # Reset gradients from the previous step
+            loss.backward()                     # Backpropagate
+            ottimizzatore.step()                # Update the model weights
             loss_train += loss.item() * len(wf)
         loss_train /= n_train
 
-        # Validazione
+        # --- Validation step ---
         modello.eval()
         loss_val = 0.0
         with torch.no_grad():
@@ -81,7 +80,7 @@ def main(args):
                 loss_val += loss.item() * len(wf)
         loss_val /= n_val
 
-        scheduler.step(loss_val)
+        scheduler.step(loss_val)        # Step for LR reducer
         storia["train"].append(loss_train)
         storia["val"].append(loss_val)
 
@@ -89,7 +88,7 @@ def main(args):
               f"train={loss_train:.6e}  val={loss_val:.6e}  "
               f"lr={ottimizzatore.param_groups[0]['lr']:.1e}")
 
-        # Salva il modello migliore
+        # --- Save the best model so far (lowest validation loss), and reset the early-stopping counter ---
         if loss_val < best_val:
             best_val = loss_val
             patience_counter = 0
@@ -105,7 +104,7 @@ def main(args):
                 print(f"Early stopping a epoca {epoca}")
                 break
 
-        # Salva un checkpoint ogni 10 epoche
+        # --- Periodic checkpoint every 10 epochs ---
         if epoca % 10 == 0:
             torch.save({
                 "epoca": epoca,
@@ -115,7 +114,7 @@ def main(args):
             }, cartella / f"checkpoint_epoca{epoca}_latent{args.latent_dim}.pt")
             print(f"  Checkpoint salvato a epoca {epoca}")
 
-        # Salva la storia delle loss
+        # --- Save the loss history after every epoch ---
         with open(cartella / f"storia_latent{args.latent_dim}.json", "w") as f:
             json.dump(storia, f)
 
