@@ -71,5 +71,5 @@ tqdm
 
 ## Notes
 
-- One out of the available LED off files was excluded from training, due to an anomalously high noise level (likely a temporary front-end electronics instability) that the model consistently flagged as anomalous across its entire duration.
+- One out of the available LED on files was excluded from the train validation, due to an anomalously high noise level (likely a temporary front-end electronics instability) that the model consistently flagged as anomalous across its entire duration.
 - The anomaly score is evaluated on a restricted time window rather than the full waveform: this was found to significantly improve the separation between signal and background populations, since it focuses on the region where the slowly-decaying ion tail — the main feature distinguishing a genuine photoelectron signal from pure noise — is most prominent.
