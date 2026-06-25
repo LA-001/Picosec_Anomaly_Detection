@@ -15,19 +15,19 @@ Since individual LED on events are not labeled as signal or background, a standa
 
 ```
 .
+├── LED_OFF.ipynb                                 # Preliminary exploration of the LED off dataset
+├── LED_ON.ipynb                                  # Preliminary exploration of the LED on dataset
+├── Confronto.ipynb                               # Comparison between the two datasets
 ├── dataset.py                                    # WaveformDataset class: HDF5 loading + preprocessing
 ├── model.py                                      # 1D convolutional autoencoder
 ├── train.py                                      # Training script (CLI)
-├── LED_OFF.ipynb                                 # Preliminary exploration of the LED off dataset
-├── LED_ON.ipynb                                  # Preliminary exploration of the LED on dataset
 ├── Valutazione_train_validation_riordinato.ipynb # Model evaluation on the validation set (LED off)
-├── Valutazione_train_test_riordinato.ipynb       # Model evaluation on the test set (LED on)
-└── Confronto.ipynb                               # Final comparison between the two datasets
+└──  Valutazione_train_test_riordinato.ipynb       # Model evaluation on the test set (LED on)
 ```
 
 ## Pipeline
 
-**1. Preliminary exploration** (`LED_OFF.ipynb`, `LED_ON.ipynb`)
+**1. Preliminary exploration** (`LED_OFF.ipynb`, `LED_ON.ipynb`,`Confronto.ipynb`)
 Raw HDF5 inspection, waveform previews, amplitude/integral/RMS distributions, average waveform per dataset. Also computes and saves the physical features (minimum amplitude, integral) used later for evaluation, and the global mean/std (`mean_norm.npy`, `std_norm.npy`) used for Z-score normalization.
 
 **2. Dataset and preprocessing** (`dataset.py`)
@@ -55,7 +55,6 @@ The best model (lowest validation loss), periodic checkpoints, and the loss hist
 **5. Evaluation**
 - `Valutazione_train_validation_riordinato.ipynb`: loads the trained model, plots the training/validation loss curve, computes the reconstruction error on the validation set (LED off), and visualizes the latent space via PCA.
 - `Valutazione_train_test_riordinato.ipynb`: same evaluation on the test set (LED on). Selects an anomaly score threshold (scanning mean amplitude, selected fraction, and low-charge contamination as a function of the threshold), compares the amplitude/charge distributions of normal vs anomalous events, and fits the resulting spectra with a Polya distribution, expected for single-photoelectron avalanche multiplication.
-- `Confronto.ipynb`: final side-by-side comparison of amplitude and charge distributions between the two datasets.
 
 ## Requirements
 
